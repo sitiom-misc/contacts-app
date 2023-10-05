@@ -9,20 +9,29 @@ import "@ionic/react/css/typography.css";
 import "@ionic/react/css/padding.css";
 import "./theme/variables.css";
 import ContactDetails from "./pages/ContactDetails";
+import { FirestoreProvider, StorageProvider, useFirebaseApp } from "reactfire";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 setupIonicReact();
 
 function App() {
+  const firestoreInstance = getFirestore(useFirebaseApp());
+
   return (
-    <IonApp>
-      <IonReactRouter>
-        <IonRouterOutlet>
-          <Redirect exact from="/" to="/contacts" />
-          <Route exact component={ContactList} path="/contacts" />
-          <Route exact component={ContactDetails} path="/contacts/:id" />
-        </IonRouterOutlet>
-      </IonReactRouter>
-    </IonApp>
+    <FirestoreProvider sdk={firestoreInstance}>
+      <StorageProvider sdk={getStorage(useFirebaseApp())}>
+        <IonApp>
+          <IonReactRouter>
+            <IonRouterOutlet>
+              <Redirect exact from="/" to="/contacts" />
+              <Route exact component={ContactList} path="/contacts" />
+              <Route exact component={ContactDetails} path="/contacts/:id" />
+            </IonRouterOutlet>
+          </IonReactRouter>
+        </IonApp>
+      </StorageProvider>
+    </FirestoreProvider>
   );
 }
 

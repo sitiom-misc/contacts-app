@@ -15,12 +15,14 @@ import {
   useIonRouter,
 } from "@ionic/react";
 import { useParams } from "react-router-dom";
-import useContactStore from "../store";
 import avatar from "../assets/avatar.svg";
 import { call, mail, ellipsisVertical } from "ionicons/icons";
 import { useLongPress } from "react-use";
 import ContactModal from "../components/ContactModal";
 import { useRef, useState } from "react";
+import { DocumentReference, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { useFirestore, useFirestoreDocData } from "reactfire";
+import { Contact } from "../types/contacts";
 
 interface RouteParams {
   id: string;
@@ -28,10 +30,16 @@ interface RouteParams {
 
 const ContactDetails = () => {
   const { id } = useParams<RouteParams>();
-  const { removeContact, updateContact } = useContactStore();
-  const contact = useContactStore((state) =>
-    state.contacts.find((c) => c.id === id)
-  );
+
+  const contactRef = doc(
+    useFirestore(),
+    "contacts",
+    id,
+  ) as DocumentReference<Contact>;
+  const { status, data: contact } = useFirestoreDocData(contactRef, {
+    idField: "id",
+  });
+
   const emailLongPress = useLongPress(() => {
     if (!contact?.email) return;
     window.open(`mailto:${contact.email}`);
@@ -50,8 +58,6 @@ const ContactDetails = () => {
     setPopoverOpen(true);
   };
 
-  if (!contact) return null;
-
   const confirmDelete = () =>
     presentAlert({
       header: "Confirm deletion",
@@ -66,13 +72,15 @@ const ContactDetails = () => {
           role: "destructive",
           cssClass: "!text-red-500",
           handler: () => {
-            removeContact(contact);
+            deleteDoc(contactRef);
             if (router.canGoBack()) router.goBack();
             else router.push("/contacts", "back", "replace");
           },
         },
       ],
     });
+
+  if (status === "loading" || !contact) return null;
 
   return (
     <IonPage>
@@ -100,7 +108,8 @@ const ContactDetails = () => {
                   trigger="edit"
                   title="Update Contact"
                   onSubmit={(contact) => {
-                    updateContact(contact);
+                    delete contact.id;
+                    setDoc(contactRef, contact, { merge: true });
                     setPopoverOpen(false);
                   }}
                   contact={contact}

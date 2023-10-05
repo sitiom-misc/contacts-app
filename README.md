@@ -1,3 +1,3 @@
 # Contacts
 
-For MP2 - RecyclerView and Dialog
+For MP2 - Firebase Database + Firebase Storage

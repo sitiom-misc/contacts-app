@@ -8,13 +8,18 @@ import {
   IonContent,
   IonInput,
   IonIcon,
+  IonRippleEffect,
+  IonLoading,
 } from "@ionic/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { checkmark, close } from "ionicons/icons";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Contact } from "../types/contacts";
+import { useStorage } from "reactfire";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import avatar from "../assets/avatar.svg";
 
 const contactSchema = z.object({
   id: z.string().uuid(),
@@ -26,7 +31,6 @@ const contactSchema = z.object({
     .startsWith("09")
     .min(11)
     .regex(/^[0-9]+$/, { message: "Phone number does not match pattern" }),
-  avatarUrl: z.union([z.string().url(), z.literal("")]),
 });
 
 interface ContactModalProps {
@@ -43,6 +47,11 @@ const ContactModal = ({
   contact,
 }: ContactModalProps) => {
   const modal = useRef<HTMLIonModalElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(contact?.avatarUrl ?? avatar);
+  const [isUploading, setIsUploading] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File>();
+  const storage = ref(useStorage(), "contacts");
+
   const {
     register,
     getFieldState,
@@ -60,8 +69,8 @@ const ContactModal = ({
     <IonModal
       ref={modal}
       trigger={trigger}
-      initialBreakpoint={0.65}
-      breakpoints={[0.5, 0.65]}
+      initialBreakpoint={0.7}
+      breakpoints={[0.5, 0.7]}
       onDidDismiss={() => reset()}
     >
       <IonHeader>
@@ -85,15 +94,44 @@ const ContactModal = ({
         </IonToolbar>
       </IonHeader>
       <IonContent>
+        <IonLoading isOpen={isUploading} message="Loading..." />
         <form
           id="contactForm"
-          onSubmit={handleSubmit((data) => {
-            console.table(data);
+          onSubmit={handleSubmit(async (data) => {
+            if (avatarFile) {
+              const avatarRef = ref(storage, `${data.id}/${avatarFile.name}`);
+              setIsUploading(true);
+              await uploadBytes(avatarRef, avatarFile);
+              data.avatarUrl = await getDownloadURL(avatarRef);
+              setIsUploading(false);
+              setAvatarUrl(avatar); // Reset avatarUrl
+            }
             onSubmit(data);
             modal.current?.dismiss();
           })}
-          className="mt-5 space-y-2"
+          className="space-y-2"
         >
+          <label>
+            <div className="ion-activatable relative m-5 mx-auto h-36 w-36 rounded-2xl">
+              <img
+                src={avatarUrl}
+                alt="avatar"
+                className="mx-auto h-36 w-36 rounded-full object-cover"
+              />
+              <IonRippleEffect />
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setAvatarFile(file);
+                setAvatarUrl(URL.createObjectURL(file));
+              }}
+            />
+          </label>
           <input
             type="hidden"
             {...register("id")}
@@ -150,19 +188,6 @@ const ContactModal = ({
             placeholder="09123456789"
             errorText={errors.phone?.message}
             {...register("phone")}
-          />
-          <IonInput
-            className={`${
-              getFieldState("avatarUrl").invalid && "ion-invalid"
-            } ${touchedFields.avatarUrl && "ion-touched"}`}
-            mode="md"
-            fill="solid"
-            labelPlacement="floating"
-            label="Avatar URL (optional)"
-            type="url"
-            placeholder="https://example.com/avatar.png"
-            errorText={errors.avatarUrl?.message}
-            {...register("avatarUrl")}
           />
         </form>
       </IonContent>

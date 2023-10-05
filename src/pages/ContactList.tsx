@@ -15,24 +15,37 @@ import {
   IonTitle,
   IonToolbar,
 } from "@ionic/react";
-import useContactStore from "../store";
 import { Contact } from "../types/contacts";
 import avatar from "../assets/avatar.svg";
 import { add } from "ionicons/icons";
 import ContactModal from "../components/ContactModal";
-import useHydration from "../hooks/useHydration";
+import { useFirestore, useFirestoreCollectionData } from "reactfire";
+import {
+  CollectionReference,
+  collection,
+  doc,
+  setDoc,
+} from "firebase/firestore";
 
 interface GroupedContacts {
   [key: string]: Contact[];
 }
 
 const ContactList = () => {
-  const { contacts, addContact } = useContactStore();
-  const hydrated = useHydration();
+  const contactsCollection = collection(
+    useFirestore(),
+    "contacts",
+  ) as CollectionReference<Contact>;
+  const { status, data: contacts } = useFirestoreCollectionData(
+    contactsCollection,
+    {
+      idField: "id",
+    },
+  );
 
   // Sort & group contacts by first letter of first name
   const groupedContacts = contacts
-    .sort((a, b) => a.firstName.localeCompare(b.firstName))
+    ?.sort((a, b) => a.firstName.localeCompare(b.firstName))
     .reduce((acc, contact) => {
       const firstLetter = contact.firstName[0].toUpperCase();
       if (!acc[firstLetter]) acc[firstLetter] = [];
@@ -48,8 +61,8 @@ const ContactList = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonLoading isOpen={!hydrated} message="Loading..." />
-        {!hydrated || (
+        <IonLoading isOpen={status === "loading"} message="Loading..." />
+        {status !== "success" || (
           <>
             <IonList>
               {Object.entries(groupedContacts).map(([letter, contacts]) => (
@@ -88,7 +101,13 @@ const ContactList = () => {
             <ContactModal
               trigger="open-modal"
               title="New Contact"
-              onSubmit={addContact}
+              onSubmit={(contact) => {
+                delete contact.id;
+                setDoc(
+                  doc(contactsCollection, self.crypto.randomUUID()),
+                  contact,
+                );
+              }}
             />
           </>
         )}
